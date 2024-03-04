@@ -81,6 +81,8 @@ export interface Config {
         windowMs?: number;
         max?: number;
     };
+
+    pythonServiceUrl: string;
 }
 
 // default config:
@@ -97,7 +99,8 @@ let config: Config = {
         // limit each IP to 100 requests per minute:
         max: 100,
         windowMs: 60 * 1000, // 1 minute
-    }
+    },
+    pythonServiceUrl: 'http://localhost:8000/query', // Default URL
 };
 
 if (!fs.existsSync('./data')) {
@@ -145,6 +148,10 @@ if (process.argv.includes('--self-signed')) {
 if (config.publicSiteURL) {
     // remove trailing slash:
     config.publicSiteURL = config.publicSiteURL.replace(/\/$/, '');
+}
+
+if (process.env.PYTHON_SERVICE_URL) {
+    config.pythonServiceUrl = process.env.PYTHON_SERVICE_URL;
 }
 
 export {
