@@ -5,15 +5,12 @@ import { config } from '../config';
 export default class QueryToPromptMiddleware {
     static async generatePrompt(req: express.Request, res: express.Response, next: express.NextFunction) {
         try {
-            // Extract query from the request body
-            const { query } = req.body;
+            const { messages } = req.body;
+            const query = messages.length > 0 ? messages[0].content : '';
 
-            // Call the Python service to generate a prompt
-            const response = await axios.post(config.pythonServiceUrl, { query });
+            const response = await axios.post(`${config.pythonServiceUrl}/create-prompt`, { query });
 
-
-            // Attach the generated prompt to the request object
-            req.prompt = response.data.prompt;
+            req.body.messages = [{ role: "user", content: response.data.prompt }];
 
             next();
         } catch (error) {

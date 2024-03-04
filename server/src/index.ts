@@ -95,7 +95,7 @@ export default class ChatServer {
         this.app.post('/chatapi/share', (req, res) => new ShareRequestHandler(this, req, res));
 
         if (config.services?.openai?.apiKey) {
-            this.app.post('/chatapi/proxies/openai/v1/chat/completions', QueryToPromptMiddleware, (req, res) => new OpenAIProxyRequestHandler(this, req, res));
+            this.app.post('/chatapi/proxies/openai/v1/chat/completions', QueryToPromptMiddleware.generatePrompt, (req, res) => new OpenAIProxyRequestHandler(this, req, res));
         }
 
         if (config.services?.elevenlabs?.apiKey) {
