@@ -2,13 +2,7 @@
 
 Chat with GPT is an open-source, unofficial ChatGPT app with extra features and more ways to customize your experience. It connects ChatGPT with ElevenLabs to give ChatGPT a realistic human voice.
 
-Try out the hosted version at: https://www.chatwithgpt.ai
-
-Or [self-host with Docker](#running-on-your-own-computer).
-
 Powered by the new ChatGPT API from OpenAI, this app has been developed using TypeScript + React. We welcome pull requests from the community!
-
-https://user-images.githubusercontent.com/127109874/223613258-0c4fef2e-1d05-43a1-ac38-e972dafc2f98.mp4
 
 ## Features
 
@@ -44,16 +38,14 @@ Your API key is stored only on your device and never transmitted to anyone excep
 To run on your own device, you can use Docker:
 
 ```
-docker run -v $(pwd)/data:/app/data -p 3000:3000 ghcr.io/cogentapps/chat-with-gpt:release
+docker build --no-cache .
 ```
 
 Then navigate to http://localhost:3000 to view the app.
 
-### Store your API keys on the server
+### Reccomendable usage of API KEY
 
-For convenience, you can store your API keys on your computer instead of entering them in the browser.
-
-*Warning:* Be very careful doing this if anyone else has access to your self-hosted version of the app. They will be able to use the app through your API key as well.
+You can use the API Key on the browser UI.
 
 Create a file called `config.yaml` in your `data` folder with the following contents:
 
@@ -66,13 +58,3 @@ services:
 ```
 
 and restart the server. Login is required.
-
-## Updating
-
-```
-docker pull ghcr.io/cogentapps/chat-with-gpt:release
-```
-
-## License
-
-Chat with GPT is licensed under the MIT license. See the LICENSE file for more information.
