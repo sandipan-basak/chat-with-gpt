@@ -1,8 +1,11 @@
 FROM node:19-bullseye-slim AS build
 
-RUN apt-get update && \
-    apt-get install -y \
-    git
+# Update package lists, install necessary packages including git, then clean up in one RUN to keep the image size down
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app

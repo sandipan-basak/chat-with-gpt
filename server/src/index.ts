@@ -18,7 +18,7 @@ import OpenAIProxyRequestHandler from './endpoints/service-proxies/openai';
 import SessionRequestHandler from './endpoints/session';
 import ShareRequestHandler from './endpoints/share';
 import ObjectStore from './object-store/index';
-import S3ObjectStore from './object-store/s3';
+// import S3ObjectStore from './object-store/s3';
 import SQLiteObjectStore from './object-store/sqlite';
 import { configurePassport } from './passport';
 import SyncRequestHandler, { getNumUpdatesProcessedIn5Minutes } from './endpoints/sync';
@@ -39,7 +39,7 @@ const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 export default class ChatServer {
     authProvider = 'local';
     app: express.Application;
-    objectStore: ObjectStore = process.env.S3_BUCKET ? new S3ObjectStore() : new SQLiteObjectStore();
+    objectStore: ObjectStore = new SQLiteObjectStore();
     database: Database = new KnexDatabaseAdapter();
 
     constructor() {

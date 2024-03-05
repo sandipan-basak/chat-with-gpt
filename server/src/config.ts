@@ -81,8 +81,6 @@ export interface Config {
         windowMs?: number;
         max?: number;
     };
-
-    pythonServiceUrl: string;
 }
 
 // default config:
