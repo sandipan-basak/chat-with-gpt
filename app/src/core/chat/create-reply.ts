@@ -1,5 +1,5 @@
 import EventEmitter from "events";
-import { createChatCompletion, createStreamingChatCompletion } from "./openai";
+import { createChatCompletion, createStreamingChatCompletion, preprocessMessages } from "./openai";
 import { PluginContext } from "../plugins/plugin-context";
 import { pluginRunner } from "../plugins/plugin-runner";
 import { Chat, Message, OpenAIMessage, Parameters, getOpenAIMessageFromMessage } from "./types";
@@ -29,35 +29,48 @@ export class ReplyRequest extends EventEmitter {
         delete this.mutatedParameters.apiKey;
     }
 
-    pluginContext = (pluginID: string) => ({
-        getOptions: () => {
-            return this.pluginOptions.getAllOptions(pluginID, this.chat.id);
-        },
-
-        getCurrentChat: () => {
-            return this.chat;
-        },
-
-        createChatCompletion: async (messages: OpenAIMessage[], _parameters: Parameters) => {
-            return await createChatCompletion(messages, {
-                ..._parameters,
-                apiKey: this.requestedParameters.apiKey,
-            });
-        },
-
-        setChatTitle: async (title: string) => {
-            this.yChat.title = title;
-        },
-    } as PluginContext);
+    pluginContext = (pluginID: string) => {
+        console.log(`Creating plugin context for pluginID: ${pluginID}`);
+        return {
+            getOptions: () => {
+                const options = this.pluginOptions.getAllOptions(pluginID, this.chat.id);
+                console.log(`getOptions called for pluginID ${pluginID}, returning options:`, options);
+                return options;
+            },
+    
+            getCurrentChat: () => {
+                console.log(`getCurrentChat called, returning chat:`, this.chat);
+                return this.chat;
+            },
+    
+            createChatCompletion: async (messages: OpenAIMessage[], _parameters: Parameters) => {
+                console.log(`createChatCompletion called with messages:`, messages, `and parameters:`, _parameters);
+                const completion = await createChatCompletion(messages, {
+                    ..._parameters,
+                    apiKey: this.requestedParameters.apiKey,
+                });
+                console.log(`Chat completion created:`, completion);
+                return completion;
+            },
+    
+            setChatTitle: async (title: string) => {
+                console.log(`setChatTitle called with title: ${title}`);
+                this.yChat.title = title;
+            },
+        } as PluginContext;
+    };
+    
 
     private scheduleTimeout() {
         this.lastChunkReceivedAt = Date.now();
-
+        console.log('Timeout scheduler reset.');
+    
         clearInterval(this.timer);
-
+    
         this.timer = setInterval(() => {
             const sinceLastChunk = Date.now() - this.lastChunkReceivedAt;
             if (sinceLastChunk > 30000 && !this.done) {
+                console.log(`No response from OpenAI in the last 30 seconds. sinceLastChunk: ${sinceLastChunk}`);
                 this.onError('no response from OpenAI in the last 30 seconds');
             }
         }, 2000);
@@ -65,35 +78,43 @@ export class ReplyRequest extends EventEmitter {
 
     public async execute() {
         try {
+            console.log('Execution started.');
             this.scheduleTimeout();
-
+    
             await pluginRunner("preprocess-model-input", this.pluginContext, async plugin => {
+                console.log(`Running plugin: ${plugin.name} for preprocess-model-input`);
                 const output = await plugin.preprocessModelInput(this.mutatedMessages, this.mutatedParameters);
+                console.log(`Plugin ${plugin.name} output:`, output);
                 this.mutatedMessages = output.messages;
                 this.mutatedParameters = output.parameters;
                 this.lastChunkReceivedAt = Date.now();
             });
 
+            this.mutatedMessages = await preprocessMessages(this.mutatedMessages);
+    
+            console.log('Creating streaming chat completion.');
             const { emitter, cancel } = await createStreamingChatCompletion(this.mutatedMessages, {
                 ...this.mutatedParameters,
                 apiKey: this.requestedParameters.apiKey,
             });
             this.cancelSSE = cancel;
-
+    
             const eventIterator = new EventEmitterAsyncIterator<string>(emitter, ["data", "done", "error"]);
-
+            console.log('Event iterator created, listening for events.');
+    
             for await (const event of eventIterator) {
                 const { eventName, value } = event;
-
+                console.log(`Event received: ${eventName}`, value);
+    
                 switch (eventName) {
                     case 'data':
                         await this.onData(value);
                         break;
-
+    
                     case 'done':
                         await this.onDone();
                         break;
-
+    
                     case 'error':
                         if (!this.content || !this.done) {
                             await this.onError(value);
@@ -102,10 +123,13 @@ export class ReplyRequest extends EventEmitter {
                 }
             }
         } catch (e: any) {
-            console.error(e);
+            console.error(`Error during execution:`, e);
             this.onError(e.message);
+        } finally {
+            console.log('Execution completed.');
         }
     }
+    
 
     public async onData(value: any) {
         if (this.done) {

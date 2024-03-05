@@ -7,15 +7,19 @@ import { backend } from "../backend";
 export const defaultModel = 'gpt-3.5-turbo';
 
 export function isProxySupported() {
+    console.log(`backend=${backend}`);
+    console.log(`backend.current.services=${backend.current?.services}`);
+
     return !!backend.current?.services?.includes('openai');
 }
 
 function shouldUseProxy(apiKey: string | undefined | null) {
+    console.log(`apiKey = ${apiKey}`);
     return !apiKey && isProxySupported();
 }
 
 function getEndpoint(proxied = false) {
-    return proxied ? '/chatapi/proxies/openai' : 'https://api.openai.com';
+    return 'https://api.openai.com';
 }
 
 export interface OpenAIResponseChunk {
@@ -51,10 +55,17 @@ function parseResponseChunk(buffer: any): OpenAIResponseChunk {
 }
 
 export async function createChatCompletion(messages: OpenAIMessage[], parameters: Parameters): Promise<string> {
+    console.log("createChatCompletion: Starting", { parameters });
+    
     const proxied = shouldUseProxy(parameters.apiKey);
+    console.log(`Proxied=${proxied}`);
     const endpoint = getEndpoint(proxied);
+    console.log(`Endpoint=${endpoint}`);
+
+    console.log(`createChatCompletion: Proxied=${proxied}, Endpoint=${endpoint}`);
 
     if (!proxied && !parameters.apiKey) {
+        console.error("createChatCompletion: No API key provided");
         throw new Error('No API key provided');
     }
 
@@ -62,7 +73,7 @@ export async function createChatCompletion(messages: OpenAIMessage[], parameters
         method: "POST",
         headers: {
             'Accept': 'application/json, text/plain, */*',
-            'Authorization': !proxied ? `Bearer ${parameters.apiKey}` : '',
+            'Authorization': `Bearer ${parameters.apiKey}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -74,16 +85,53 @@ export async function createChatCompletion(messages: OpenAIMessage[], parameters
 
     const data = await response.json();
 
+    console.log("createChatCompletion: Response received", { data });
+
     return data.choices[0].message?.content?.trim() || '';
 }
 
+export async function preprocessMessages(messages) {
+    console.log("Preprocessing messages:", messages);
+    try {
+        const query: string = messages.length > 0 ? messages.map(item => item.content).join('. ') : '';
+        console.log(`Received query: ${query}`);
+        // Assuming `axios` is available in your client-side environment
+        // You might need to replace this with fetch or another HTTP client suitable for your environment
+
+        console.log('query', query);
+
+        const pythonServiceUrl = 'http://localhost:8000'
+        const response = await fetch(`${pythonServiceUrl}/create-prompt`, {
+            method: "POST",
+            headers: {
+                'Accept': 'application/json, text/plain, */*',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                "query": query,
+            }),
+        });
+        const data = await response.json();
+        console.log("Received response from preprocessing service:", data);
+        return [{ role: "user", content: data }];
+    } catch (error) {
+        console.error("Error during message preprocessing:", error);
+        throw new Error('Failed to preprocess messages');
+    }
+}
+
 export async function createStreamingChatCompletion(messages: OpenAIMessage[], parameters: Parameters) {
+    console.log("createStreamingChatCompletion: Starting", { parameters });
+    
     const emitter = new EventEmitter();
 
     const proxied = shouldUseProxy(parameters.apiKey);
     const endpoint = getEndpoint(proxied);
 
+    console.log(`createStreamingChatCompletion: Proxied=${proxied}, Endpoint=${endpoint}`);
+
     if (!proxied && !parameters.apiKey) {
+        console.error("createStreamingChatCompletion: No API key provided");
         throw new Error('No API key provided');
     }
 
@@ -91,7 +139,7 @@ export async function createStreamingChatCompletion(messages: OpenAIMessage[], p
         method: "POST",
         headers: {
             'Accept': 'application/json, text/plain, */*',
-            'Authorization': !proxied ? `Bearer ${parameters.apiKey}` : '',
+            'Authorization': `Bearer ${parameters.apiKey}`,
             'Content-Type': 'application/json',
         },
         payload: JSON.stringify({
@@ -105,15 +153,19 @@ export async function createStreamingChatCompletion(messages: OpenAIMessage[], p
     let contents = '';
 
     eventSource.addEventListener('error', (event: any) => {
+        console.error("createStreamingChatCompletion: Error received", event.data);
         if (!contents) {
             let error = event.data;
             try {
                 error = JSON.parse(error).error.message;
-            } catch (e) {}
+            } catch (e) {
+                console.error("createStreamingChatCompletion: Error parsing", e);
+            }
             emitter.emit('error', error);
         }
     });
 
+    console.log("createStreamingChatCompletion: EventSource setup completed");
     eventSource.addEventListener('message', async (event: any) => {
         if (event.data === '[DONE]') {
             emitter.emit('done');
